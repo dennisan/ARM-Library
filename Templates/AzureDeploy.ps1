@@ -20,8 +20,8 @@ Add-AzureRmAccount
 #-----------------------------------------------------
 # Select the Subscription by subscriptionId or by Tenant Id
 #-----------------------------------------------------
-$subscriptionId = '11dc728f-f13f-4a5e-ab73-a0a2563d7edd'  # MSDN Subscription
-Select-AzureSubscription -SubscriptionId $subscriptionId 
+$subscriptionId = "11dc728f-f13f-4a5e-ab73-a0a2563d7edd"
+Select-AzureRMSubscription -SubscriptionId $subscriptionId
 
 #$tenantid = '1b50b25c-00b2-4a8d-8911-77742e0ba0fd'  # Universal Widget
 #Select-AzureRmSubscription -TenantId $tenantId
@@ -31,7 +31,7 @@ Select-AzureSubscription -SubscriptionId $subscriptionId
 #-----------------------------------------------------
 $deployName = "AzureDeploy"
 $location = "westus"
-$rgName = "Panther" 
+$rgName = "Cougar" 
 $tags = @(@{ Name = "product"; Value = "test" } )
 
 $rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
