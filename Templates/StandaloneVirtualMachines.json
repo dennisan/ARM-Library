@@ -1,0 +1,164 @@
+/* This template can be used to create a single standalone VMs. */
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+	"contentVersion": "1.0.0.0",
+
+	"parameters": {
+		"Prefix": {
+			"type": "string",
+			"metadata": {
+				 "description": "Prefix used in resource names"
+			}
+		}
+	},
+		
+	"variables": {
+
+		// storage account settings
+		"stndStorageAccountName": "[toLower(concat( parameters('Prefix'), 'storage' ))]",
+		
+		// vnet settings
+		"vnetName"     : "[concat( parameters('Prefix'), '-vnet' )]",
+		"vnetAddress"  : "10.0.0.0/21",			// 2048 addresses: 10.0.0.0 - 10.0.7.255
+		"vnetId"       : "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",		
+		
+		// subnet settings
+		"subnetName"   : "app-subnet",
+		"subnetAddress": "10.0.0.0/24",			//  255 addresses: 10.0.0.0 - 10.0.0.255
+		"subnetRef"    : "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]",
+		
+		// nic/vip settings
+		"nicName"      : "[concat( parameters('Prefix'), '-nic' )]",
+		"vipName"      : "[concat( parameters('Prefix'), '-vip' )]",
+		"dnsName"      : "[toLower( concat( parameters('Prefix'), 'dns'))]",
+		
+		// vm settings
+		"vmName"       : "[concat( parameters('Prefix'), '-vm' )]",
+		"vmSize"       : "Standard_A3",
+		"adminUsername": "Dennis",
+		"adminPassword": "P@ssword1",
+	},
+
+	"resources": [
+
+		{
+			"type": "Microsoft.Storage/storageAccounts",
+			"name": "[variables('stndStorageAccountName')]",
+			"apiVersion": "2015-05-01-preview",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"accountType": "Standard_LRS"
+			}
+		},
+
+		{
+			"type": "Microsoft.Network/virtualNetworks",
+			"name": "[variables('vnetName')]",
+			"apiVersion": "2015-05-01-preview",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"addressSpace": {
+					"addressPrefixes": [
+						"[variables('vnetAddress')]"
+					]
+				},
+				"subnets": [
+					{
+						"name": "[variables('subnetName')]",
+						"properties": {
+							"addressPrefix": "[variables('subnetAddress')]"
+						}
+					}
+				]
+			}
+		},
+
+		{
+			"type": "Microsoft.Network/publicIPAddresses",
+			"name": "[variables('vipName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"publicIPAllocationMethod": "dynamic",
+				"dnsSettings": {
+					"domainNameLabel": "[variables('dnsName')]"
+				}
+			}
+		},
+		
+		{
+			"type": "Microsoft.Network/networkInterfaces",
+			"name": "[variables('nicName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"ipConfigurations": [
+					{
+						"name": "ipconfig",
+						"properties": {
+							"privateIPAllocationMethod": "Dynamic",
+							"subnet": {
+								"id": "[variables('subnetRef')]"
+							}
+						}
+					}
+				]
+			}
+		},
+
+		{
+			"type": "Microsoft.Compute/virtualMachines",
+			"name": "[variables('vmName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+			],
+			"properties": {
+				"hardwareProfile": {
+					"vmSize": "[variables('vmSize')]"
+				},
+				"osProfile": {
+					"computername" : "[variables('vmName')]",
+					"adminUsername": "[variables('adminUsername')]",
+					"adminPassword": "[variables('adminPassword')]"
+				},
+				"networkProfile": {
+					"networkInterfaces": [
+						{
+							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nicName')))]"
+						}
+					]
+				},
+				"storageProfile": {
+					"imageReference": {
+						"publisher": "MicrosoftWindowsServer",
+						"offer": "WindowsServer",
+						"sku": "2012-R2-Datacenter",
+						"version": "latest"
+					},
+					"osDisk": {
+						"name": "[concat(variables('vmName'), '-osdisk')]",
+						"vhd": {
+							"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-osdisk.vhd')]"
+						},
+						"caching": "ReadWrite",
+						"createOption": "FromImage"
+					},
+					"dataDisks": [
+						{
+							"lun": 0,
+							"name": "[concat(variables('vmName'), '-datadisk','0')]",
+							"createOption": "Empty",
+							"diskSizeGB": "1023",
+							"vhd": {
+								"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-datadisk','0','.vhd')]"
+							},
+							"caching": "None"
+						}
+					]
+				}
+			}
+		}
+	]
+}

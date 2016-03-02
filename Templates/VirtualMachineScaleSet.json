@@ -1,0 +1,248 @@
+/* This template can be used to create a set of VMs behind a load balancer */
+{
+	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
+	"contentVersion": "1.0.0.0",
+
+	"parameters": {
+		"Prefix": {
+			"type": "string",
+			"metadata": {
+				"description": "Name of customer being deployed"
+			}
+		},
+		"vmInstances": {
+			"type": "int",
+			"defaultValue": 1,
+			"metadata": {
+				"description": "Number of VMs to create"
+			}
+		}
+	},
+
+	"variables": {
+
+		// storage account settings
+		"stndStorageAccountName": "[toLower(concat( parameters('Prefix'), 'storage' ))]",
+		
+		// vnet settings
+		"vnetName"        : "[concat( parameters('Prefix'), '-vnet' )]",
+		"vnetAddress"     : "10.0.0.0/21",			// 2048 addresses: 10.0.0.0 - 10.0.7.255
+		"vnetId"          : "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",		
+		
+		// subnet settings
+		"subnetName"      : "app-subnet",
+		"subnetAddress"   : "10.0.0.0/24",			//	255 addresses: 10.0.0.0 - 10.0.0.255
+		"subnetRef"       : "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]",
+		
+		// nic/vip settings
+		"nicName"         : "[concat( parameters('Prefix'), '-nic' )]",
+		"vipName"         : "[concat( parameters('Prefix'), '-vip' )]",
+		"lbName"          : "[concat( parameters('Prefix'), '-lb' )]",
+		"dnsName"         : "[toLower( concat( parameters('Prefix'), 'dns'))]",
+		
+		// vm settings
+		"vmName"          : "[concat( parameters('Prefix'), '-vm' )]",
+		"vmSize"          : "Standard_A3",
+		"adminUsername"   : "Dennis",
+		"adminPassword"   : "P@ssword1",
+		
+		// availability set settings
+		"availSetName"    : "[concat( parameters('Prefix'), '-as' )]",
+		"faultDomainCount": "3",
+	},
+
+	"resources": [
+
+		{
+			"type": "Microsoft.Storage/storageAccounts",
+			"name": "[variables('stndStorageAccountName')]",
+			"apiVersion": "2015-05-01-preview",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"accountType": "Standard_LRS"
+			}
+		},
+
+		{
+			"type": "Microsoft.Network/virtualNetworks",
+			"name": "[variables('vnetName')]",
+			"apiVersion": "2015-05-01-preview",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"addressSpace": {
+					"addressPrefixes": [
+						"[variables('vnetAddress')]"
+					]
+				},
+				"subnets": [
+					{
+						"name": "[variables('subnetName')]",
+						"properties": {
+							"addressPrefix": "[variables('subnetAddress')]"
+						}
+					}
+				]
+			}
+		},
+
+		{
+			"type": "Microsoft.Network/publicIPAddresses",
+			"name": "[variables('vipName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"publicIPAllocationMethod": "dynamic",
+				"dnsSettings": {
+					"domainNameLabel": "[variables('dnsName')]"
+				}
+			}
+		},
+
+		{
+			"type": "Microsoft.Compute/availabilitySets",
+			"name": "[variables('availSetName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"properties": {
+				"PlatformFaultDomainCount": "[variables('faultDomainCount')]"
+			}
+		},
+
+		{
+			"type": "Microsoft.Network/loadBalancers",
+			"name": "[variables('lbName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Network/publicIPAddresses/', variables('vipName'))]"
+			],
+			"properties": {
+
+				// connect the lb to the vip
+				"frontendIPConfigurations": [
+					{
+						"name": "LBFE",
+						"properties": {
+							"publicIPAddress": {
+								"id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('vipName'))]"
+							}
+						}
+					}
+				],
+
+				// define a backend pool where nics will be attached 
+				"backendAddressPools": [
+					{
+						"name": "LBBAP"
+					}
+				],
+
+				"inboundNatPools": [
+					{
+						"name" : "LBNP",
+						"properties": {
+							"frontendIPConfiguration": {
+								"id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/frontendIPConfigurations/LBFE')]"
+							},
+							"protocol" : "tcp",
+							"frontendPortRangeStart" : 3389,
+							"frontendPortRangeEnd" : 3399,
+							"backendPort" : 3389
+						},
+					},	
+				],
+			},
+		},
+
+		{
+			"type": "Microsoft.Compute/virtualMachineScaleSets",
+			"name": "[variables('vmName')]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Storage/storageAccounts/',  variables('stndStorageAccountName'))]",
+				"[concat('Microsoft.Compute/availabilitySets/', variables('availSetName'))]",
+				"[concat('Microsoft.Network/virtualNetworks/',  variables('vnetName'))]",
+				"[concat('Microsoft.Network/loadBalancers/',    variables('lbName'))]"
+			],
+			"sku": {
+				"name"     : "[variables('vmSize')]",
+				"tier"     : "Standard",
+				"capacity" : "[parameters('vmInstances')]"
+			},
+			"properties": {
+
+				"upgradePolicy":{
+					"mode":"Manual"
+				},	
+				"virtualMachineProfile" : {
+
+					"storageProfile": {
+						"imageReference": {
+							"publisher": "MicrosoftWindowsServer",
+							"offer"    : "WindowsServer",
+							"sku"      : "2012-R2-Datacenter",
+							"version"  : "latest"
+						},
+						"osDisk": {
+							"name"    : "[concat(variables('vmName'), '-osdisk')]",
+							"vhdContainers" : [
+								"[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/')]"
+							],
+							"caching"  : "ReadWrite",
+							"createOption": "FromImage"
+						},
+						"dataDisks": [
+							{
+								"lun"         : 0,
+								"name"        : "[concat(variables('vmName'), '-datadisk','0')]",
+								"createOption": "Empty",
+								"diskSizeGB"  : "1023",
+								"vhd": {
+									"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/')]"
+								},
+								"caching"     : "None"
+							}
+						]
+					},
+					"osProfile" : {
+						"computerNamePrefix": "[variables('vmName')]",
+						"adminUsername"     : "[variables('adminUsername')]",
+						"adminPassword"     : "[variables('adminPassword')]"
+					},
+					"networkProfile" : {
+						"networkInterfaceConfigurations": [
+							{
+								"name": "[variables('nicName')]",
+								"properties": {
+									"primary" : true,
+									"ipConfigurations": [
+										{
+											"name": "ipconfig",
+											"properties": {
+												"privateIPAllocationMethod": "Dynamic",
+												"subnet": {
+													"id": "[variables('subnetRef')]"
+												},
+												"loadBalancerBackendAddressPools" : [
+													{
+														"id" : "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/backendAddressPools/LBBAP')]"
+													}
+												],
+												"loadBalancerInboundNatPools" : [
+													{
+														"id" : "[concat(resourceId('Microsoft.Network/loadBalancers', variables('lbName')), '/inboundNatPools/LBNP')]"
+													}
+												],
+											},
+										},
+									],
+								},
+							},
+						],
+					},
+				},
+			}
+		}
+	]
+}
