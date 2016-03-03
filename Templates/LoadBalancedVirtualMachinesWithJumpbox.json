@@ -1,6 +1,6 @@
 /* 
-This template can be used to create a set of VMs behind a load balancer
-
+This template can be used to create a set of VMs behind a load balancer 
+with an additional vip, nic, and vm set up for a jumpbox
 */
 {
 	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
@@ -52,6 +52,12 @@ This template can be used to create a set of VMs behind a load balancer
 		// availability set settings
 		"availSetName"    : "[concat( parameters('Prefix'), '-as' )]",
 		"faultDomainCount": "3",
+		
+		// jumpbox settings
+		"jmpName"   : "Jumpbox",
+		"jmpVipName": "Jumpbox-vip",
+		"jmpNicName": "Jumpbox-nic",
+		"jmpVmName" : "Jumpbox-vm",
 	},
 
 	"resources": [
@@ -280,7 +286,7 @@ This template can be used to create a set of VMs behind a load balancer
 				}
 			}
 		},
-		
+
 		// virtual machine extension
 		{
 			"type": "Microsoft.Compute/virtualMachines/extensions",
@@ -300,5 +306,91 @@ This template can be used to create a set of VMs behind a load balancer
 				"typeHandlerVersion": "2.1",
 			}
 		},
+
+		// public IP address for jumpbox
+		{
+			"type"                    : "Microsoft.Network/publicIPAddresses",
+			"name"                    : "[variables('jmpVipName')]",
+			"apiVersion"              : "2015-06-15",
+			"location"                : "[resourceGroup().location]",
+			"properties"              : {
+				"publicIPAllocationMethod": "dynamic",
+			}
+		},
+
+		// network interface for jumpbox
+		{
+			"type"      : "Microsoft.Network/networkInterfaces",
+			"name"      : "[variables('jmpNicName')]",
+			"apiVersion": "2015-06-15",
+			"location"  : "[resourceGroup().location]",
+			"dependsOn" : [
+				"[concat('Microsoft.Network/publicIPAddresses/', variables('jmpVipName'))]"
+			],
+			"properties": {
+				"ipConfigurations": [
+					{
+						"name": "ipconfig",
+						"properties": {
+							"privateIPAllocationMethod": "Dynamic",
+							"publicIPAddress": {
+								"id": "[resourceId('Microsoft.Network/publicIPAddresses/', variables('jmpVipName'))]"
+							},
+							"subnet": {
+								"id": "[variables('subnetRef')]"
+							},
+						}
+					}
+				]
+			}
+		},
+
+		// virtual machine for jumpbox
+		{
+			"type"      : "Microsoft.Compute/virtualMachines",
+			"name"      : "[variables('jmpVmName')]",
+			"apiVersion": "2015-06-15",
+			"location"  : "[resourceGroup().location]",
+			"dependsOn" : [
+				"[concat('Microsoft.Storage/storageAccounts/', variables('stndStorageAccountName'))]",
+				"[concat('Microsoft.Network/networkInterfaces/', variables('jmpNicName'))]",
+				"[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
+			],
+			"properties": {
+
+				"hardwareProfile": {
+					"vmSize": "[variables('vmSize')]"
+				},
+				"osProfile": {
+					"computerName" : "Jumpbox-vm",
+					"adminUsername": "[variables('adminUsername')]",
+					"adminPassword": "[variables('adminPassword')]"
+				},
+				"networkProfile": {
+					"networkInterfaces": [
+						{
+							"id": "[resourceId('Microsoft.Network/networkInterfaces', variables('jmpNicName'))]"
+						}
+					]
+				},
+				"storageProfile": {
+					"imageReference": {
+						"publisher": "MicrosoftWindowsServer",
+						"offer"    : "WindowsServer",
+						"sku"      : "2012-R2-Datacenter",
+						"version"  : "latest"
+					},
+					"osDisk": {
+						"name"        : "[concat('Jumpbox-vm','-osdisk')]",
+						"vhd"         : {
+							"uri"     : "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('jmpVmName'), '-osdisk.vhd')]"
+						},
+						"caching"     : "ReadWrite",
+						"createOption": "FromImage"
+					},
+				}
+			}
+		},
+
 	]
 }

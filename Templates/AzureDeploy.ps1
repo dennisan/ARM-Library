@@ -31,20 +31,38 @@ Select-AzureRMSubscription -SubscriptionId $subscriptionId
 #-----------------------------------------------------
 $deployName = "AzureDeploy"
 $location = "westus"
-$rgName = "Cougar" 
 $tags = @(@{ Name = "product"; Value = "test" } )
 
+
+
+### A single standalone VM
+$rgName = "VM-StandAlone" 
+$parameters = @{"Prefix" = "AlphaX";}
 $rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\StandAloneVirtualMachines.json -TemplateParameterObject $parameters 
 
+### Load Balanced set of VMs
+$rgName = "VM-LoadBalanced" 
+$parameters = @{"Prefix" = "BravoX"; "VmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedVirtualMachines.json -TemplateParameterObject $parameters 
 
-$parameters = @{
-    "Prefix" = $rgName;
-    "VmInstances" = 2;
-}
+### Load Balanced set of VMs with a Jumpbox
+$rgName = "VM-LoadBalancedWithJumpbox" 
+$parameters = @{"Prefix" = "CharlieX"; "VmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedVirtualMachinesWithJumpbox.json -TemplateParameterObject $parameters 
 
-#New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\StandAloneVirtualMachines.json -TemplateParameterObject $parameters 
-#New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedVirtualMachines.json -TemplateParameterObject $parameters 
+### Load Balanced set of multi-Nic VMs multiple
+$rgName = "VM-LoadBalancedMultiNic" 
+$parameters = @{"Prefix" = "DeltaX"; "VmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedMultiNicVirtualMachines.json -TemplateParameterObject $parameters 
+
+### Load Balanced VM scaleset
+$rgName = "VM-LoadBalancedScaleSet" 
+$parameters = @{"Prefix" = "DeltaX"; "VmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
 New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\VirtualMachineScaleSet.json -TemplateParameterObject $parameters 
-
 
 

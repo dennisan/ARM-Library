@@ -1,4 +1,7 @@
-/* This template can be used to create a single standalone VMs. */
+/* 
+This template can be used to create a single standalone VMs. 
+
+*/
 {
 	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
 	"contentVersion": "1.0.0.0",
@@ -41,6 +44,7 @@
 
 	"resources": [
 
+		// storage account
 		{
 			"type": "Microsoft.Storage/storageAccounts",
 			"name": "[variables('stndStorageAccountName')]",
@@ -51,6 +55,7 @@
 			}
 		},
 
+		// virtual network
 		{
 			"type": "Microsoft.Network/virtualNetworks",
 			"name": "[variables('vnetName')]",
@@ -73,6 +78,7 @@
 			}
 		},
 
+		// public IP Address
 		{
 			"type": "Microsoft.Network/publicIPAddresses",
 			"name": "[variables('vipName')]",
@@ -86,11 +92,15 @@
 			}
 		},
 		
+		// network interface
 		{
 			"type": "Microsoft.Network/networkInterfaces",
 			"name": "[variables('nicName')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
+			],
 			"properties": {
 				"ipConfigurations": [
 					{
@@ -106,12 +116,15 @@
 			}
 		},
 
+		// virtual machine
 		{
 			"type": "Microsoft.Compute/virtualMachines",
 			"name": "[variables('vmName')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
+				"[concat('Microsoft.Storage/storageAccounts/', variables('stndStorageAccountName'))]",
+				"[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
 				"[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
 			],
 			"properties": {
@@ -133,32 +146,48 @@
 				"storageProfile": {
 					"imageReference": {
 						"publisher": "MicrosoftWindowsServer",
-						"offer": "WindowsServer",
-						"sku": "2012-R2-Datacenter",
-						"version": "latest"
+						"offer"    : "WindowsServer",
+						"sku"      : "2012-R2-Datacenter",
+						"version"  : "latest"
 					},
 					"osDisk": {
-						"name": "[concat(variables('vmName'), '-osdisk')]",
-						"vhd": {
-							"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-osdisk.vhd')]"
+						"name"        : "[concat(variables('vmName'), '-osdisk')]",
+						"vhd"         : {
+							"uri"     : "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-osdisk.vhd')]"
 						},
-						"caching": "ReadWrite",
+						"caching"     : "ReadWrite",
 						"createOption": "FromImage"
 					},
 					"dataDisks": [
 						{
-							"lun": 0,
-							"name": "[concat(variables('vmName'), '-datadisk','0')]",
+							"lun"         : 0,
+							"name"        : "[concat(variables('vmName'), '-datadisk','0')]",
 							"createOption": "Empty",
-							"diskSizeGB": "1023",
-							"vhd": {
-								"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-datadisk','0','.vhd')]"
+							"diskSizeGB"  : "1023",
+							"vhd"         : {
+								"uri"     : "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), '-datadisk','0','.vhd')]"
 							},
-							"caching": "None"
+							"caching"     : "None"
 						}
 					]
 				}
 			}
-		}
+		},
+
+		// virtual machine extension
+		{
+			"type": "Microsoft.Compute/virtualMachines/extensions",
+			"name": "[concat(variables('vmName'), '/BGInfo' )]",
+			"apiVersion": "2015-05-01-preview",
+			"location": "[resourceGroup().location]",
+			"dependsOn": [
+				"[concat('Microsoft.Compute/virtualMachines/', variables('vmName'))]"
+			],
+			"properties": {
+				"publisher"         : "Microsoft.Compute",
+				"type"              : "BGInfo",
+				"typeHandlerVersion": "2.1",
+			}
+		},
 	]
 }
