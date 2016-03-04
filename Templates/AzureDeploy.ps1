@@ -11,6 +11,7 @@ Import-module AzureRM.Network
 #Import-module AzureRM.WebSites
 #Import-module AzureRM.Resources
 
+cd 'C:\Users\Dennis\Source\PowerShell\ARM Library\Templates'
 
 #-----------------------------------------------------
 # Authenticate
@@ -34,6 +35,11 @@ $location = "westus"
 $tags = @(@{ Name = "product"; Value = "test" } )
 
 
+### Load Balanced set of multi-Nic VMs
+$rgName = "VM-LoadBalancedMultiNic" 
+$parameters = @{"Prefix" = "DeltaX"; "appVmInstances" = 1; "midVmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedMultiNicVirtualMachines.json -TemplateParameterObject $parameters 
 
 ### A single standalone VM
 $rgName = "VM-StandAlone" 
@@ -52,12 +58,6 @@ $rgName = "VM-LoadBalancedWithJumpbox"
 $parameters = @{"Prefix" = "CharlieX"; "VmInstances" = 1;}
 $rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
 New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedVirtualMachinesWithJumpbox.json -TemplateParameterObject $parameters 
-
-### Load Balanced set of multi-Nic VMs multiple
-$rgName = "VM-LoadBalancedMultiNic" 
-$parameters = @{"Prefix" = "DeltaX"; "VmInstances" = 1;}
-$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
-New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedMultiNicVirtualMachines.json -TemplateParameterObject $parameters 
 
 ### Load Balanced VM scaleset
 $rgName = "VM-LoadBalancedScaleSet" 

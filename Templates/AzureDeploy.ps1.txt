@@ -1,0 +1,32 @@
+﻿#-----------------------------------------------------
+# Import utilities module
+#-----------------------------------------------------
+Import-module AzureRM.Compute
+Import-module AzureRM.Storage
+Import-module AzureRM.Network
+
+cd 'C:\Users\Dennis\Source\PowerShell\ARM Library\Templates'
+
+#-----------------------------------------------------
+# Authenticate
+#-----------------------------------------------------
+Add-AzureRmAccount
+
+#-----------------------------------------------------
+# Select the Subscription by subscriptionId
+#-----------------------------------------------------
+$subscriptionId = "put your subscription id here"
+Select-AzureRMSubscription -SubscriptionId $subscriptionId
+
+#-----------------------------------------------------
+# Create a new deployment
+#-----------------------------------------------------
+$deployName = "AzureDeploy"
+$location = "westus"
+$tags = @(@{ Name = "product"; Value = "test" } )
+
+### Load Balanced set of multi-Nic VMs
+$rgName = "VM-LoadBalancedMultiNic" 
+$parameters = @{"Prefix" = "DeltaX"; "appVmInstances" = 1; "midVmInstances" = 1;}
+$rg = New-AzureRMResourceGroup -name $rgName -location $location -tags $tags
+New-AzureRMResourceGroupDeployment -ResourceGroupName $rgName -Name $deployName -TemplateFile .\LoadBalancedMultiNicVirtualMachines.json -TemplateParameterObject $parameters 

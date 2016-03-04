@@ -10,11 +10,19 @@
 				"description": "Name of customer being deployed"
 			}
 		},
-		"vmInstances": {
+		"appVmInstances": {
 			"type": "int",
 			"defaultValue": 1,
 			"metadata": {
-				"description": "Number of VMs to create"
+				"description": "Number of app VMs to create"
+			}
+		},
+
+		"midVmInstances": {
+			"type": "int",
+			"defaultValue": 1,
+			"metadata": {
+				"description": "Number of mid VMs to create"
 			}
 		}
 	},
@@ -40,14 +48,14 @@
 		"subnet2Ref"    : "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnet2Name'))]",
 		
 		// nic/vip settings
-		"nicName"       : "[concat( parameters('Prefix'), '-nic' )]",
+		"intLbName"     : "[concat( parameters('Prefix'), '-int-lb' )]",
+		"extLbName"     : "[concat( parameters('Prefix'), '-ext-lb' )]",
 		"vipName"       : "[concat( parameters('Prefix'), '-vip' )]",
-		"elbName"       : "[concat( parameters('Prefix'), '-lbe' )]",
-		"ilbName"       : "[concat( parameters('Prefix'), '-lbi' )]",
 		"dnsName"       : "[toLower( concat( parameters('Prefix'), 'dns'))]",
 		
 		// vm settings
-		"vmName"        : "[concat( parameters('Prefix'), '-vm' )]",
+		"appVmName"     : "[concat( parameters('Prefix'), '-app-vm' )]",
+		"midVmName"     : "[concat( parameters('Prefix'), '-mid-vm' )]",
 		"vmSize"        : "Standard_A3",
 		"adminUsername" : "Dennis",
 		"adminPassword" : "P@ssword1",
@@ -127,7 +135,7 @@
 		// external load balancer
 		{
 			"type": "Microsoft.Network/loadBalancers",
-			"name": "[variables('elbName')]",
+			"name": "[variables('extLbName')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
@@ -160,11 +168,11 @@
 							"enableFloatingIP": false,
 							"loadDistribution": "Default",  // "SourceIP","SourceIPProtocol"
 		  					"frontendIPConfiguration": 
-		  						{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('elbName')), '/frontendIPConfigurations/LBFE')]"},
+		  						{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/frontendIPConfigurations/LBFE')]"},
 							"backendAddressPool": 
-								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('elbName')), '/backendAddressPools/LBBE')]"},
+								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/backendAddressPools/LBBE')]"},
 							"probe": 
-								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('elbName')), '/probes/PROBE')]"},
+								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/probes/PROBE')]"},
 						}	
 					}
 				],
@@ -193,7 +201,7 @@
 		// internal load balancer
 		{
 			"type": "Microsoft.Network/loadBalancers",
-			"name": "[variables('ilbName')]",
+			"name": "[variables('intLbName')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
@@ -231,15 +239,15 @@
 		// external nic
 		{
 			"type": "Microsoft.Network/networkInterfaces",
-			"name": "[concat(variables('nicName'), copyIndex(1), 'e')]",
+			"name": "[concat(variables('appVmName'), copyIndex(1), '-ext-nic')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
-				"[concat('Microsoft.Network/loadBalancers/', variables('elbName'))]"
+				"[concat('Microsoft.Network/loadBalancers/', variables('extLbName'))]"
 			],
 			"copy": {
 				"name": "nicLoop",
-				"count": "[parameters('vmInstances')]"
+				"count": "[parameters('appVmInstances')]"
 			},
 			"properties": {
 				"ipConfigurations": [
@@ -252,7 +260,7 @@
 							},
 							"loadBalancerBackendAddressPools": [
 								{
-									"id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('elbName')), '/backendAddressPools/LBBE')]"
+									"id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('extLbName')), '/backendAddressPools/LBBE')]"
 								}
 							],
 							"loadBalancerInboundNatRules": [ ]
@@ -265,15 +273,15 @@
 		// internal nic 
 		{
 			"type": "Microsoft.Network/networkInterfaces",
-			"name": "[concat(variables('nicName'), copyIndex(1), 'i')]",
+			"name": "[concat(variables('appVmName'), copyIndex(1), '-int-nic')]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
-				"[concat('Microsoft.Network/loadBalancers/', variables('ilbName'))]"
+				"[concat('Microsoft.Network/loadBalancers/', variables('intLbName'))]"
 			],
 			"copy": {
 				"name": "nicLoop",
-				"count": "[parameters('vmInstances')]"
+				"count": "[parameters('appVmInstances')]"
 			},
 			"properties": {
 				"ipConfigurations": [
@@ -286,7 +294,7 @@
 							},
 							"loadBalancerBackendAddressPools": [
 								{
-									"id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('ilbName')), '/backendAddressPools/LBBE')]"
+									"id": "[concat(resourceId('Microsoft.Network/loadBalancers', variables('intLbName')), '/backendAddressPools/LBBE')]"
 								}
 							],
 							"loadBalancerInboundNatRules": [ ]
@@ -296,24 +304,24 @@
 			}
 		},
 
-		// virtual machine
+		// app server virtual machine
 		{
 			"type": "Microsoft.Compute/virtualMachines",
-			"name": "[concat(variables('vmName'), copyIndex(1))]",
+			"name": "[concat(variables('appVmName'), copyIndex(1))]",
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"copy": {
 				"name": "vmLoop",
-				"count": "[parameters('vmInstances')]"
+				"count": "[parameters('appVmInstances')]"
 			},
 			"dependsOn": [
 				"[concat('Microsoft.Storage/storageAccounts/', variables('stndStorageAccountName'))]",
-				"[concat('Microsoft.Network/networkInterfaces/', variables('nicName'), copyIndex(1), 'i')]",
-				"[concat('Microsoft.Network/networkInterfaces/', variables('nicName'), copyIndex(1), 'e')]",
+				"[concat('Microsoft.Network/networkInterfaces/', variables('appVmName'), copyIndex(1), '-int-nic')]",
+				"[concat('Microsoft.Network/networkInterfaces/', variables('appVmName'), copyIndex(1), '-ext-nic')]",
 				"[concat('Microsoft.Compute/availabilitySets/', variables('availSetName'))]",
 				"[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
-				"[concat('Microsoft.Network/loadBalancers/', variables('elbName'))]",
-				"[concat('Microsoft.Network/loadBalancers/', variables('ilbName'))]"
+				"[concat('Microsoft.Network/loadBalancers/', variables('extLbName'))]",
+				"[concat('Microsoft.Network/loadBalancers/', variables('intLbName'))]"
 			],
 			"properties": {
 				"availabilitySet": {
@@ -323,20 +331,20 @@
 					"vmSize": "[variables('vmSize')]"
 				},
 				"osProfile": {
-					"computerName": "[concat(variables('vmName'), copyIndex(1))]",
+					"computerName": "[concat(variables('appVmName'), copyIndex(1))]",
 					"adminUsername": "[variables('adminUsername')]",
 					"adminPassword": "[variables('adminPassword')]"
 				},
 				"networkProfile": {
 					"networkInterfaces": [
 						{
-							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nicName'), copyIndex(1), 'i'))]",
+							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('appVmName'), copyIndex(1), '-ext-nic'))]",
 							"properties" : {
 								"primary" : true
 							}
 						},
 						{
-							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('nicName'), copyIndex(1), 'e'))]",
+							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('appVmName'), copyIndex(1), '-int-nic'))]",
 							"properties" : {
 								"primary" : false
 							}
@@ -351,9 +359,9 @@
 						"version"  : "latest"
 					},
 					"osDisk": {
-						"name": "[concat(variables('vmName'), copyIndex(1),'-osdisk')]",
+						"name": "[concat(variables('appVmName'), copyIndex(1),'-osdisk')]",
 						"vhd": {
-							"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), copyIndex(1), '-osdisk.vhd')]"
+							"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('appVmName'), copyIndex(1), '-osdisk.vhd')]"
 						},
 						"caching": "ReadWrite",
 						"createOption": "FromImage"
@@ -361,11 +369,11 @@
 					"dataDisks": [
 						{
 							"lun"		 : 0,
-							"name"		: "[concat(variables('vmName'), copyIndex(1),'-datadisk','0')]",
+							"name"		: "[concat(variables('appVmName'), copyIndex(1),'-datadisk','0')]",
 							"createOption": "Empty",
 							"diskSizeGB"  : "1023",
 							"vhd": {
-								"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('vmName'), copyIndex(1),'-datadisk','0','.vhd')]"
+								"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('appVmName'), copyIndex(1),'-datadisk','0','.vhd')]"
 							},
 							"caching"	 : "None"
 						}
@@ -374,23 +382,92 @@
 			}
 		},
 
+
+		// internal nic 
 		{
-			"type": "Microsoft.Compute/virtualMachines/extensions",
-			"name": "[concat(variables('vmName'), copyIndex(1), '/BGInfo' )]",
-			"apiVersion": "2015-05-01-preview",
+			"type": "Microsoft.Network/networkInterfaces",
+			"name": "[concat(variables('midVmName'), copyIndex(1), '-nic')]",
+			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"dependsOn": [
-				"[concat('Microsoft.Compute/virtualMachines/', variables('vmName'), copyIndex(1))]"
+				"[concat('Microsoft.Network/loadBalancers/', variables('intLbName'))]"
 			],
 			"copy": {
-				"name": "extLoop",
-				"count": "[parameters('vmInstances')]"
+				"name": "nicLoop",
+				"count": "[parameters('midVmInstances')]"
 			},
 			"properties": {
-				"publisher": "Microsoft.Compute",
-				"type": "BGInfo",
-				"typeHandlerVersion": "2.1",
+				"ipConfigurations": [
+					{
+						"name": "ipconfig",
+						"properties": {
+							"privateIPAllocationMethod": "Dynamic",
+							"subnet": {
+								"id": "[variables('subnet2Ref')]"
+							},
+							"loadBalancerBackendAddressPools": [ ],
+							"loadBalancerInboundNatRules": [ ]
+						}
+					}
+				]
 			}
-		}
+		},
+
+		// mid server virtual machine
+		{
+			"type": "Microsoft.Compute/virtualMachines",
+			"name": "[concat(variables('midVmName'), copyIndex(1))]",
+			"apiVersion": "2015-06-15",
+			"location": "[resourceGroup().location]",
+			"copy": {
+				"name": "vmLoop",
+				"count": "[parameters('midVmInstances')]"
+			},
+			"dependsOn": [
+				"[concat('Microsoft.Storage/storageAccounts/', variables('stndStorageAccountName'))]",
+				"[concat('Microsoft.Network/networkInterfaces/', variables('midVmName'), copyIndex(1), '-nic')]",
+				"[concat('Microsoft.Network/virtualNetworks/', variables('vnetName'))]",
+				"[concat('Microsoft.Network/loadBalancers/', variables('intLbName'))]"
+			],
+			"properties": {
+				"hardwareProfile": {
+					"vmSize": "[variables('vmSize')]"
+				},
+				"osProfile": {
+					"computerName": "[concat(variables('midVmName'), copyIndex(1))]",
+					"adminUsername": "[variables('adminUsername')]",
+					"adminPassword": "[variables('adminPassword')]"
+				},
+				"networkProfile": {
+					"networkInterfaces": [
+						{
+							"id": "[resourceId('Microsoft.Network/networkInterfaces', concat(variables('midVmName'), copyIndex(1), '-nic'))]",
+							"properties" : {
+								"primary" : true
+							}
+						}
+					]
+				},
+				"storageProfile": {
+					"imageReference": {
+						"publisher": "MicrosoftWindowsServer",
+						"offer"	: "WindowsServer",
+						"sku"	  : "2012-R2-Datacenter",
+						"version"  : "latest"
+					},
+					"osDisk": {
+						"name": "[concat(variables('midVmName'), copyIndex(1),'-osdisk')]",
+						"vhd": {
+							"uri": "[concat('http://',variables('stndStorageAccountName'),'.blob.core.windows.net/vhds/', variables('midVmName'), copyIndex(1), '-osdisk.vhd')]"
+						},
+						"caching": "ReadWrite",
+						"createOption": "FromImage"
+					},
+				}
+			}
+		},
+
+
+
 	]
 }
