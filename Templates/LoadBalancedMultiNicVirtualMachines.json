@@ -1,4 +1,14 @@
-/* This template can be used to create a set of VMs behind a load balancer */
+/* !!!! READ THESE NOTES !!!! */
+
+/* 
+This template was intended to demonstrate how to route traffic from multiple sources
+(such as from a public IP and an internal subnet) to the same set of load balanced VMs.
+The template *** DOES NOT CURRENTLY WORK *** becasue a multi-nic configuration are not 
+currently supported.
+
+This scenario likely will be supported in the future.  
+*/
+
 {
 	"$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json",
 	"contentVersion": "1.0.0.0",
@@ -44,7 +54,7 @@
 		
 		// subnet settings
 		"subnet2Name"   : "back-subnet",
-		"subnet2Address": "10.0.1.0/24",		//	255 addresses: 10.0.1.0 - 10.0.1.255
+		"subnet2Address": "10.0.1.0/24",		    //	255 addresses: 10.0.1.0 - 10.0.1.255
 		"subnet2Ref"    : "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnet2Name'))]",
 		
 		// nic/vip settings
@@ -62,7 +72,7 @@
 		
 		// availability set settings
 		"availSetName"    : "[concat( parameters('Prefix'), '-as' )]",
-		"faultDomainCount": "3",
+		"faultDomainCount": "3"
 	},
 
 	"resources": [
@@ -114,7 +124,7 @@
 			"apiVersion": "2015-06-15",
 			"location": "[resourceGroup().location]",
 			"properties": {
-				"publicIPAllocationMethod": "dynamic",
+				"publicIPAllocationMethod": "Dynamic",
 				"dnsSettings": {
 					"domainNameLabel": "[variables('dnsName')]"
 				}
@@ -151,7 +161,7 @@
 							"protocol": "Http",
 							"port": 80,
 							"requestPath": "/",
-							"intervalInSeconds": 5,
+							"intervalInSeconds": 5
 						}
 					}
 				],
@@ -172,7 +182,7 @@
 							"backendAddressPool": 
 								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/backendAddressPools/LBBE')]"},
 							"probe": 
-								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/probes/PROBE')]"},
+								{"id": "[concat(resourceId('Microsoft.Network/loadBalancers/', variables('extLbName')), '/probes/PROBE')]"}
 						}	
 					}
 				],
@@ -194,7 +204,7 @@
 					{
 						"name": "LBBE"
 					}
-				],
+				]
 			}
 		},
 
@@ -222,7 +232,7 @@
 						"properties": {
 							"subnet": {
 								"id": "[variables('subnet2Ref')]"
-							},
+							}
 						}
 					}
 				],
@@ -232,7 +242,7 @@
 					{
 						"name": "LBBE"
 					}
-				],
+				]
 			}
 		},
 
@@ -462,7 +472,7 @@
 						},
 						"caching": "ReadWrite",
 						"createOption": "FromImage"
-					},
+					}
 				}
 			}
 		},

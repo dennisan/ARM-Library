@@ -11,7 +11,7 @@ Import-module AzureRM.Network
 #Import-module AzureRM.WebSites
 #Import-module AzureRM.Resources
 
-cd 'C:\Users\Dennis\Source\PowerShell\ARM Library\Templates'
+cd 'D:\All Projects\PowerShell\ARM-Library\Templates'
 
 #-----------------------------------------------------
 # Authenticate
